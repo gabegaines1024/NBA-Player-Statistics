@@ -194,12 +194,13 @@ def get_injury_report(date: str) -> dict:
         print(f"Error getting injury report for {date}: {e}")
         return None
 
-def save_raw_data(data: dict, file_name: str) -> str:
+def save_raw_data(data: dict) -> str:
     """
     Save raw data to a JSON file.
     """
+    file_name = f"/Users/gabegaines/Desktop/python projects/NBA-Player-Statistics/data/raw/raw.json"
     try:
-        with open(file_name, 'w') as f:
+        with open(file_name, 'a') as f:
             json.dump(data, f)
         return f"Data saved to {file_name}"
     except Exception as e:
