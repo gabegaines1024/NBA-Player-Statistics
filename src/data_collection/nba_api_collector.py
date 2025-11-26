@@ -1,10 +1,10 @@
-import pandas as pd
+
 from nba_api.stats.endpoints import teamgamelogs, playergamelogs
 from nba_api.stats.static import players, teams
+import pandas as pd
 import numpy as np
-
-
-def _get_player_id(player_name):
+import json
+def _get_player_id(player_name: str) -> int:
     """
     Helper function to lookup player ID from player name using static players module.
     
@@ -26,7 +26,7 @@ def _get_player_id(player_name):
         return None
 
 
-def _get_team_id(team_name_or_abbrev):
+def _get_team_id(team_name_or_abbrev: str) -> int:
     """
     Helper function to lookup team ID from team name or abbreviation using static teams module.
     
@@ -54,7 +54,7 @@ def _get_team_id(team_name_or_abbrev):
         return None
 
 
-def get_player_game_logs(player_name, season_type='Regular Season', season_year=2024):
+def get_player_game_logs(player_name: str, season_type: str = 'Regular Season', season_year: int = 2024) -> pd.DataFrame:
     """
     Get game logs for a player in a given season.
     
@@ -87,7 +87,7 @@ def get_player_game_logs(player_name, season_type='Regular Season', season_year=
         return None
 
 
-def get_team_stats(team_name_or_abbrev, season_type='Regular Season', season_year=2024):
+def get_team_stats(team_name_or_abbrev: str, season_type: str = 'Regular Season', season_year: int = 2024) -> pd.DataFrame:
     """
     Get team stats for a team in a given season.
     
@@ -120,7 +120,7 @@ def get_team_stats(team_name_or_abbrev, season_type='Regular Season', season_yea
         return None
 
 
-def get_player_info(player_name):
+def get_player_info(player_name: str) -> dict:
     """
     Get player biographical information from static data.
     
@@ -144,7 +144,7 @@ def get_player_info(player_name):
         return None
 
 
-def get_team_info(team_name_or_abbrev):
+def get_team_info(team_name_or_abbrev: str) -> dict:
     """
     Get team information from static data.
     
@@ -170,4 +170,38 @@ def get_team_info(team_name_or_abbrev):
             return None
     except Exception as e:
         print(f"Error getting team info for {team_name_or_abbrev}: {e}")
+        return None
+
+def get_opponent_stats(team_id: int, date: str) -> dict:
+    """
+    Get opponent defensive rating for a given data.
+    """
+    try:
+        opponent_stats = teamgamelogs.TeamGameLogs(team_id=team_id, date=date).get_data_frames()[0]['DEF_RATING']
+        return opponent_stats
+    except Exception as e:
+        print(f"Error getting opponent stats for {team_id} on {date}: {e}")
+        return None
+    
+def get_injury_report(date: str) -> dict:
+    """
+    Get injury report for a given date.
+    """
+    try:
+        injury_report = teamgamelogs.InjuryReport(date=date).get_data_frames()[0]['INJURY_REPORT']
+        return injury_report
+    except Exception as e:
+        print(f"Error getting injury report for {date}: {e}")
+        return None
+
+def save_raw_data(data: dict, file_name: str) -> str:
+    """
+    Save raw data to a JSON file.
+    """
+    try:
+        with open(file_name, 'w') as f:
+            json.dump(data, f)
+        return f"Data saved to {file_name}"
+    except Exception as e:
+        print(f"Error saving data to {file_name}: {e}")
         return None
