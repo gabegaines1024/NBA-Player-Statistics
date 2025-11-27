@@ -17,5 +17,9 @@ ipykernel==6.27.1
 # Data Processing
 requests==2.31.0
 
+#data validation
+pydantic==2.12.4
+pydantic-core==2.41.5
+
 # Optional but useful
 scipy==1.11.4
