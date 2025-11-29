@@ -79,10 +79,14 @@ def get_player_game_logs(player_name: str, season_type: str = 'Regular Season', 
             season_type=season_type, 
             season_year=season_year
         ).get_data_frames()[0]
-        
-        print(f"Game logs collected successfully for {player_name}")
-        return game_logs
-        
+
+        if game_logs:
+            game_logs_array = np.array(game_logs)
+            return game_logs_array
+        else:
+            print(f"Game logs not found for {player_name}")
+            return None
+
     except Exception as e:
         print(f"Error getting game logs for {player_name}: {e}")
         return None
@@ -113,8 +117,12 @@ def get_team_stats(team_name_or_abbrev: str, season_type: str = 'Regular Season'
             season_year=season_year
         ).get_data_frames()[0]
         
-        print(f"Team stats collected successfully for {team_name_or_abbrev}")
-        return team_stats
+        if team_stats:
+            team_stats_array = np.array(team_stats)
+            return team_stats_array
+        else:
+            print(f"Team stats not found for {team_name_or_abbrev}")
+            return None
         
     except Exception as e:
         print(f"Error getting team stats for {team_name_or_abbrev}: {e}")
@@ -132,13 +140,12 @@ def get_player_info(player_name: str) -> dict:
         dict: Player information dictionary if found, None otherwise
     """
     try:
-        player_list = players.find_players_by_full_name(player_name)
-        if player_list:
-            player_info = player_list[0]
-            print(f"Player biographical info collected successfully for {player_name}")
-            return player_info
+        player_info = players.find_players_by_full_name(player_name)
+        if player_info:
+            player_info_array = np.array(player_info)
+            return player_info_array 
         else:
-            print(f"Player '{player_name}' not found")
+            print(f"Player info not found for {player_name}")
             return None
     except Exception as e:
         print(f"Error getting player info for {player_name}: {e}")
@@ -180,7 +187,12 @@ def get_opponent_stats(team_id: int, date: str) -> dict:
     """
     try:
         opponent_stats = teamgamelogs.TeamGameLogs(team_id=team_id, date=date).get_data_frames()[0]['DEF_RATING']
-        return opponent_stats
+        if opponent_stats:
+            opponent_stats_array = np.array(opponent_stats)
+            return opponent_stats_array
+        else:
+            print(f"Opponent stats not found for {team_id} on {date}")
+            return None
     except Exception as e:
         print(f"Error getting opponent stats for {team_id} on {date}: {e}")
         return None
@@ -191,7 +203,12 @@ def get_injury_report(date: str) -> dict:
     """
     try:
         injury_report = teamgamelogs.InjuryReport(date=date).get_data_frames()[0]['INJURY_REPORT']
-        return injury_report
+        if injury_report:
+            injury_report_array = np.array(injury_report)
+            return injury_report_array
+        else:
+            print(f"Injury report not found for {date}")
+            return None
     except Exception as e:
         print(f"Error getting injury report for {date}: {e}")
         return None
@@ -208,17 +225,3 @@ def save_raw_data(data: dict) -> str:
     except Exception as e:
         print(f"Error saving data to {file_name}: {e}")
         return None
-
-# At the bottom of your file
-if __name__ == "__main__":
-    # Test team lookup
-    result = get_team_info('Los Angeles Lakers')
-    print(result)
-    
-    result = get_team_info('LAL')
-    print(result)
-    
-    result = get_team_info('Lakers')
-    print(result)
-
-    save_raw_data({'team_info':result})
