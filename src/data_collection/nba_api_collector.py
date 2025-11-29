@@ -4,6 +4,8 @@ from nba_api.stats.static import players, teams
 import pandas as pd
 import numpy as np
 import json
+import time
+
 def _get_player_id(player_name: str) -> int:
     """
     Helper function to lookup player ID from player name using static players module.
@@ -74,6 +76,7 @@ def get_player_game_logs(player_name: str, season_type: str = 'Regular Season', 
             return None
         
         # Make API call using endpoint
+        time.sleep(1)
         game_logs = playergamelogs.PlayerGameLogs(
             player_id=player_id, 
             season_type=season_type, 
@@ -111,6 +114,7 @@ def get_team_stats(team_name_or_abbrev: str, season_type: str = 'Regular Season'
             return None
         
         # Make API call using endpoint
+        time.sleep(1)
         team_stats = teamgamelogs.TeamGameLogs(
             team_id=team_id, 
             season_type=season_type, 
@@ -186,6 +190,7 @@ def get_opponent_stats(team_id: int, date: str) -> dict:
     Get opponent defensive rating for a given data.
     """
     try:
+        time.sleep(1)
         opponent_stats = teamgamelogs.TeamGameLogs(team_id=team_id, date=date).get_data_frames()[0]['DEF_RATING']
         if opponent_stats:
             opponent_stats_array = np.array(opponent_stats)
@@ -202,6 +207,7 @@ def get_injury_report(date: str) -> dict:
     Get injury report for a given date.
     """
     try:
+        time.sleep(1)
         injury_report = teamgamelogs.InjuryReport(date=date).get_data_frames()[0]['INJURY_REPORT']
         if injury_report:
             injury_report_array = np.array(injury_report)
@@ -217,6 +223,7 @@ def save_raw_data(data: dict) -> str:
     """
     Save raw data to a JSON file.
     """
+    time.sleep(1)
     file_name = f"/Users/gabegaines/Desktop/python projects/NBA-Player-Statistics/data/raw/raw.json"
     try:
         with open(file_name, 'a') as f:
