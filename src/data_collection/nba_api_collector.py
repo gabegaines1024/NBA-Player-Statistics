@@ -37,18 +37,19 @@ def _get_team_id(team_name_or_abbrev: str) -> int:
         int: Team ID if found, None otherwise
     """
     try:
-        # Try abbreviation first (shorter, more common)
-        team_list = teams.find_teams_by_abbreviation(team_name_or_abbrev)
-        if team_list:
-            return team_list[0]['id']
+        # Get all teams
+        all_teams = teams.get_teams()
         
-        # If not found by abbreviation, try full name
-        team_list = teams.find_teams_by_full_name(team_name_or_abbrev)
-        if team_list:
-            return team_list[0]['id']
+        # Search by abbreviation or full name
+        for team in all_teams:
+            if (team['abbreviation'].upper() == team_name_or_abbrev.upper() or 
+                team['full_name'].upper() == team_name_or_abbrev.upper() or
+                team['nickname'].upper() == team_name_or_abbrev.upper()):
+                return team['id']
         
         print(f"Team '{team_name_or_abbrev}' not found")
         return None
+        
     except Exception as e:
         print(f"Error looking up team '{team_name_or_abbrev}': {e}")
         return None
@@ -155,19 +156,20 @@ def get_team_info(team_name_or_abbrev: str) -> dict:
         dict: Team information dictionary if found, None otherwise
     """
     try:
-        # Try abbreviation first
-        team_list = teams.find_teams_by_abbreviation(team_name_or_abbrev)
-        if not team_list:
-            # Try full name
-            team_list = teams.find_teams_by_full_name(team_name_or_abbrev)
+        # Get all teams
+        all_teams = teams.get_teams()
         
-        if team_list:
-            team_info = team_list[0]
-            print(f"Team info collected successfully for {team_name_or_abbrev}")
-            return team_info
-        else:
-            print(f"Team '{team_name_or_abbrev}' not found")
-            return None
+        # Search by abbreviation or full name
+        for team in all_teams:
+            if (team['abbreviation'].upper() == team_name_or_abbrev.upper() or 
+                team['full_name'].upper() == team_name_or_abbrev.upper() or
+                team['nickname'].upper() == team_name_or_abbrev.upper()):
+                print(f"Team info collected successfully for {team_name_or_abbrev}")
+                return team
+        
+        print(f"Team '{team_name_or_abbrev}' not found")
+        return None
+        
     except Exception as e:
         print(f"Error getting team info for {team_name_or_abbrev}: {e}")
         return None
@@ -206,3 +208,17 @@ def save_raw_data(data: dict) -> str:
     except Exception as e:
         print(f"Error saving data to {file_name}: {e}")
         return None
+
+# At the bottom of your file
+if __name__ == "__main__":
+    # Test team lookup
+    result = get_team_info('Los Angeles Lakers')
+    print(result)
+    
+    result = get_team_info('LAL')
+    print(result)
+    
+    result = get_team_info('Lakers')
+    print(result)
+
+    save_raw_data({'team_info':result})
