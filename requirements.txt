@@ -24,3 +24,8 @@ pydantic-core==2.41.5
 
 # Optional but useful
 scipy==1.11.4
+
+# API Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6

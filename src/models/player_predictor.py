@@ -62,6 +62,39 @@ class PlayerPerformancePredictor:
         else:
             raise ValueError(f"Unknown model_type: {self.model_type}")
     
+    def _get_hyperparameter_grid(self) -> Dict:
+        """
+        Get hyperparameter grid for the current model type.
+        
+        Returns:
+            Dictionary of hyperparameters to tune
+        """
+        if self.model_type == 'random_forest':
+            return {
+                'n_estimators': [50, 100, 200],
+                'max_depth': [5, 10, 15, 20, None],
+                'min_samples_split': [2, 5, 10],
+                'min_samples_leaf': [1, 2, 4],
+                'max_features': ['sqrt', 'log2', None]
+            }
+        elif self.model_type == 'gradient_boosting':
+            return {
+                'n_estimators': [50, 100, 200],
+                'max_depth': [3, 5, 7],
+                'learning_rate': [0.01, 0.05, 0.1, 0.2],
+                'subsample': [0.8, 0.9, 1.0],
+                'min_samples_split': [2, 5, 10]
+            }
+        elif self.model_type == 'ridge':
+            return {
+                'alpha': [0.01, 0.1, 1.0, 10.0, 100.0],
+                'solver': ['auto', 'svd', 'cholesky', 'lsqr']
+            }
+        elif self.model_type == 'linear':
+            return {}  # Linear regression has no hyperparameters to tune
+        else:
+            return {}
+    
     def _prepare_features(self, df: pd.DataFrame, is_training: bool = True) -> Tuple[pd.DataFrame, Optional[pd.Series]]:
         """
         Prepare features and target from DataFrame.
@@ -204,6 +237,127 @@ class PlayerPerformancePredictor:
         print(f"  Train MAE: {train_mae:.2f}, RMSE: {train_rmse:.2f}, R²: {train_r2:.3f}")
         print(f"  Test MAE: {test_mae:.2f}, RMSE: {test_rmse:.2f}, R²: {test_r2:.3f}")
         print(f"  CV MAE: {cv_mae:.2f} ± {cv_std:.2f}")
+        
+        return metrics
+    
+    def train_with_tuning(self, df: pd.DataFrame, test_size: float = 0.2,
+                          use_scaling: bool = True, cv_folds: int = 5,
+                          n_iter: Optional[int] = None, scoring: str = 'neg_mean_absolute_error') -> Dict:
+        """
+        Train the model with hyperparameter tuning using GridSearchCV or RandomizedSearchCV.
+        
+        Args:
+            df: Training DataFrame with features and target
+            test_size: Proportion of data to use for testing
+            use_scaling: Whether to scale features
+            cv_folds: Number of cross-validation folds
+            n_iter: If specified, use RandomizedSearchCV with n_iter iterations. Otherwise use GridSearchCV.
+            scoring: Scoring metric for hyperparameter selection
+            
+        Returns:
+            Dictionary with training metrics and best parameters
+        """
+        from sklearn.model_selection import RandomizedSearchCV
+        
+        # Prepare features and target
+        X, y = self._prepare_features(df, is_training=True)
+        
+        if X.empty:
+            raise ValueError("No features available for training")
+        
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=42
+        )
+        
+        # Scale features if requested
+        if use_scaling:
+            X_train_scaled = self.scaler.fit_transform(X_train)
+            X_test_scaled = self.scaler.transform(X_test)
+        else:
+            X_train_scaled = X_train
+            X_test_scaled = X_test
+        
+        # Get hyperparameter grid
+        param_grid = self._get_hyperparameter_grid()
+        
+        if not param_grid:
+            print(f"No hyperparameters to tune for {self.model_type}. Using standard training.")
+            return self.train(df, test_size=test_size, use_scaling=use_scaling, cv_folds=cv_folds)
+        
+        # Reinitialize model for grid search
+        self._initialize_model()
+        
+        # Perform hyperparameter search
+        if n_iter:
+            print(f"Performing randomized search with {n_iter} iterations...")
+            search = RandomizedSearchCV(
+                self.model,
+                param_distributions=param_grid,
+                n_iter=n_iter,
+                cv=cv_folds,
+                scoring=scoring,
+                n_jobs=-1,
+                random_state=42,
+                verbose=1
+            )
+        else:
+            print(f"Performing grid search over {len(param_grid)} parameters...")
+            search = GridSearchCV(
+                self.model,
+                param_grid=param_grid,
+                cv=cv_folds,
+                scoring=scoring,
+                n_jobs=-1,
+                verbose=1
+            )
+        
+        # Fit the search
+        search.fit(X_train_scaled, y_train)
+        
+        # Use best model
+        self.model = search.best_estimator_
+        self.is_trained = True
+        
+        print(f"\nBest parameters found:")
+        for param, value in search.best_params_.items():
+            print(f"  {param}: {value}")
+        
+        # Make predictions with best model
+        y_train_pred = self.model.predict(X_train_scaled)
+        y_test_pred = self.model.predict(X_test_scaled)
+        
+        # Calculate metrics
+        train_mae = mean_absolute_error(y_train, y_train_pred)
+        train_rmse = np.sqrt(mean_squared_error(y_train, y_train_pred))
+        train_r2 = r2_score(y_train, y_train_pred)
+        
+        test_mae = mean_absolute_error(y_test, y_test_pred)
+        test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
+        test_r2 = r2_score(y_test, y_test_pred)
+        
+        metrics = {
+            'train': {
+                'mae': float(train_mae),
+                'rmse': float(train_rmse),
+                'r2': float(train_r2)
+            },
+            'test': {
+                'mae': float(test_mae),
+                'rmse': float(test_rmse),
+                'r2': float(test_r2)
+            },
+            'best_params': search.best_params_,
+            'best_score': float(search.best_score_),
+            'n_features': len(self.feature_columns),
+            'n_train_samples': len(X_train),
+            'n_test_samples': len(X_test)
+        }
+        
+        print(f"\nTraining Results (with tuning):")
+        print(f"  Train MAE: {train_mae:.2f}, RMSE: {train_rmse:.2f}, R²: {train_r2:.3f}")
+        print(f"  Test MAE: {test_mae:.2f}, RMSE: {test_rmse:.2f}, R²: {test_r2:.3f}")
+        print(f"  Best CV Score: {search.best_score_:.2f}")
         
         return metrics
     
