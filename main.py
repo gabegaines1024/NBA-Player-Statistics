@@ -16,6 +16,12 @@ from src.preprossessing.data_cleaner import (
 )
 from src.preprossessing.feature_engineer import engineer_features
 from src.models.player_predictor import PlayerPerformancePredictor, train_multiple_models
+from src.schemas.validators import (
+    validate_game_logs,
+    validate_processed_data,
+    validate_feature_data,
+    validate_training_request
+)
 
 
 # Define paths
@@ -83,18 +89,30 @@ def load_or_collect_data(player_name: str = "LeBron James",
     return df
 
 
-def preprocess_data(df: pd.DataFrame, min_minutes: int = 10) -> pd.DataFrame:
+def preprocess_data(df: pd.DataFrame, min_minutes: int = 10, validate: bool = False) -> pd.DataFrame:
     """
     Preprocess the data: clean, remove duplicates, handle missing values, etc.
     
     Args:
         df: Raw DataFrame
         min_minutes: Minimum minutes played to include
+        validate: Whether to validate data with pydantic schemas
         
     Returns:
         Cleaned DataFrame
     """
     print("\nPreprocessing data...")
+    
+    # Optional: Validate raw data
+    if validate:
+        try:
+            validated_logs, errors = validate_game_logs(df, strict=False)
+            if errors:
+                print(f"  Validation warnings: {len(errors)} rows had validation issues")
+            else:
+                print(f"  ✓ Data validation passed: {len(validated_logs)} records")
+        except Exception as e:
+            print(f"  Warning: Data validation failed: {e}")
     
     # Standardize column names
     df = standardize_column_names(df)
@@ -115,6 +133,17 @@ def preprocess_data(df: pd.DataFrame, min_minutes: int = 10) -> pd.DataFrame:
     df = detect_and_remove_outliers(df, threshold=3)
     print(f"  After removing outliers: {len(df)} records")
     
+    # Optional: Validate processed data
+    if validate and not df.empty:
+        try:
+            validated_logs, errors = validate_processed_data(df, strict=False)
+            if errors:
+                print(f"  Validation warnings: {len(errors)} rows had validation issues")
+            else:
+                print(f"  ✓ Processed data validation passed: {len(validated_logs)} records")
+        except Exception as e:
+            print(f"  Warning: Processed data validation failed: {e}")
+    
     # Save processed data
     try:
         records = df.to_dict('records')
@@ -127,13 +156,14 @@ def preprocess_data(df: pd.DataFrame, min_minutes: int = 10) -> pd.DataFrame:
     return df
 
 
-def create_features(df: pd.DataFrame, target_column: str = 'PTS') -> pd.DataFrame:
+def create_features(df: pd.DataFrame, target_column: str = 'PTS', validate: bool = False) -> pd.DataFrame:
     """
     Engineer features for machine learning.
     
     Args:
         df: Processed DataFrame
         target_column: Column to predict
+        validate: Whether to validate feature data with pydantic schemas
         
     Returns:
         DataFrame with engineered features
@@ -143,6 +173,17 @@ def create_features(df: pd.DataFrame, target_column: str = 'PTS') -> pd.DataFram
     df = engineer_features(df, target_column=target_column)
     
     print(f"  Created features. Total columns: {len(df.columns)}")
+    
+    # Optional: Validate feature data
+    if validate and not df.empty:
+        try:
+            validated_logs, errors = validate_feature_data(df, strict=False)
+            if errors:
+                print(f"  Validation warnings: {len(errors)} rows had validation issues")
+            else:
+                print(f"  ✓ Feature data validation passed: {len(validated_logs)} records")
+        except Exception as e:
+            print(f"  Warning: Feature data validation failed: {e}")
     
     # Save feature data
     try:
@@ -272,6 +313,7 @@ def main():
     target_column = "PTS"  # Points, AST, REB, etc.
     model_type = "random_forest"  # or 'gradient_boosting', 'linear', 'ridge'
     compare_models = False  # Set to True to compare all models
+    validate_data = False  # Set to True to enable pydantic schema validation
     
     try:
         # Step 1: Load or collect data
@@ -287,14 +329,14 @@ def main():
             return
         
         # Step 2: Preprocess data
-        df = preprocess_data(df, min_minutes=10)
+        df = preprocess_data(df, min_minutes=10, validate=validate_data)
         
         if df.empty:
             print("No data after preprocessing. Exiting.")
             return
         
         # Step 3: Engineer features
-        df = create_features(df, target_column=target_column)
+        df = create_features(df, target_column=target_column, validate=validate_data)
         
         # Step 4: Train model
         predictor = train_model(
