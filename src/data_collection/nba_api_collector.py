@@ -83,9 +83,8 @@ def get_player_game_logs(player_name: str, season_type: str = 'Regular Season', 
             season_year=season_year
         ).get_data_frames()[0]
 
-        if game_logs:
-            game_logs_array = np.array(game_logs)
-            return game_logs_array
+        if game_logs is not None and not game_logs.empty:
+            return game_logs
         else:
             print(f"Game logs not found for {player_name}")
             return None
@@ -121,9 +120,8 @@ def get_team_stats(team_name_or_abbrev: str, season_type: str = 'Regular Season'
             season_year=season_year
         ).get_data_frames()[0]
         
-        if team_stats:
-            team_stats_array = np.array(team_stats)
-            return team_stats_array
+        if team_stats is not None and not team_stats.empty:
+            return team_stats
         else:
             print(f"Team stats not found for {team_name_or_abbrev}")
             return None
@@ -146,8 +144,7 @@ def get_player_info(player_name: str) -> dict:
     try:
         player_info = players.find_players_by_full_name(player_name)
         if player_info:
-            player_info_array = np.array(player_info)
-            return player_info_array 
+            return player_info[0] if isinstance(player_info, list) else player_info
         else:
             print(f"Player info not found for {player_name}")
             return None
@@ -192,9 +189,8 @@ def get_opponent_stats(team_id: int, date: str) -> dict:
     try:
         time.sleep(1)
         opponent_stats = teamgamelogs.TeamGameLogs(team_id=team_id, date=date).get_data_frames()[0]['DEF_RATING']
-        if opponent_stats:
-            opponent_stats_array = np.array(opponent_stats)
-            return opponent_stats_array
+        if opponent_stats is not None and not opponent_stats.empty:
+            return opponent_stats
         else:
             print(f"Opponent stats not found for {team_id} on {date}")
             return None
@@ -209,9 +205,8 @@ def get_injury_report(date: str) -> dict:
     try:
         time.sleep(1)
         injury_report = teamgamelogs.InjuryReport(date=date).get_data_frames()[0]['INJURY_REPORT']
-        if injury_report:
-            injury_report_array = np.array(injury_report)
-            return injury_report_array
+        if injury_report is not None and not injury_report.empty:
+            return injury_report
         else:
             print(f"Injury report not found for {date}")
             return None
