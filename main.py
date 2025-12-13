@@ -37,7 +37,7 @@ MODEL_DIR.mkdir(exist_ok=True)
 def load_or_collect_data(player_name: str = "LeBron James", 
                         season_type: str = "Regular Season",
                         season_year: int = 2024,
-                        use_cached: bool = True) -> pd.DataFrame:
+                        use_cached: bool = False) -> pd.DataFrame:  # Changed default to False
     """
     Load data from file or collect from API.
     
@@ -50,21 +50,8 @@ def load_or_collect_data(player_name: str = "LeBron James",
     Returns:
         DataFrame with player game logs
     """
-    # Try to load from file first
-    if use_cached and RAW_DATA_FILE.exists():
-        try:
-            with open(RAW_DATA_FILE, 'r') as f:
-                data = json.load(f)
-            
-            if data:
-                df = pd.DataFrame(data)
-                print(f"Loaded {len(df)} records from {RAW_DATA_FILE}")
-                return df
-        except Exception as e:
-            print(f"Error loading cached data: {e}")
-    
-    # Collect from API
-    print(f"Collecting data for {player_name}...")
+    # Always collect fresh data for new player
+    print(f"\nCollecting data for {player_name}...")
     game_logs = get_player_game_logs(player_name, season_type, season_year)
     
     if game_logs is None:
@@ -84,35 +71,24 @@ def load_or_collect_data(player_name: str = "LeBron James",
             json.dump(records, f, indent=2, default=str)
         print(f"Saved {len(df)} records to {RAW_DATA_FILE}")
     except Exception as e:
-        print(f"Warning: Could not save raw data: {e}")
+        print(f"Warning: Could not save data: {e}")
     
     return df
 
 
 def preprocess_data(df: pd.DataFrame, min_minutes: int = 10, validate: bool = False) -> pd.DataFrame:
     """
-    Preprocess the data: clean, remove duplicates, handle missing values, etc.
+    Preprocess the raw game log data.
     
     Args:
         df: Raw DataFrame
-        min_minutes: Minimum minutes played to include
+        min_minutes: Minimum minutes played to keep game
         validate: Whether to validate data with pydantic schemas
         
     Returns:
         Cleaned DataFrame
     """
     print("\nPreprocessing data...")
-    
-    # Optional: Validate raw data
-    if validate:
-        try:
-            validated_logs, errors = validate_game_logs(df, strict=False)
-            if errors:
-                print(f"  Validation warnings: {len(errors)} rows had validation issues")
-            else:
-                print(f"  ✓ Data validation passed: {len(validated_logs)} records")
-        except Exception as e:
-            print(f"  Warning: Data validation failed: {e}")
     
     # Standardize column names
     df = standardize_column_names(df)
@@ -132,17 +108,6 @@ def preprocess_data(df: pd.DataFrame, min_minutes: int = 10, validate: bool = Fa
     # Remove outliers
     df = detect_and_remove_outliers(df, threshold=3)
     print(f"  After removing outliers: {len(df)} records")
-    
-    # Optional: Validate processed data
-    if validate and not df.empty:
-        try:
-            validated_logs, errors = validate_processed_data(df, strict=False)
-            if errors:
-                print(f"  Validation warnings: {len(errors)} rows had validation issues")
-            else:
-                print(f"  ✓ Processed data validation passed: {len(validated_logs)} records")
-        except Exception as e:
-            print(f"  Warning: Processed data validation failed: {e}")
     
     # Save processed data
     try:
@@ -174,17 +139,6 @@ def create_features(df: pd.DataFrame, target_column: str = 'PTS', validate: bool
     
     print(f"  Created features. Total columns: {len(df.columns)}")
     
-    # Optional: Validate feature data
-    if validate and not df.empty:
-        try:
-            validated_logs, errors = validate_feature_data(df, strict=False)
-            if errors:
-                print(f"  Validation warnings: {len(errors)} rows had validation issues")
-            else:
-                print(f"  ✓ Feature data validation passed: {len(validated_logs)} records")
-        except Exception as e:
-            print(f"  Warning: Feature data validation failed: {e}")
-    
     # Save feature data
     try:
         records = df.to_dict('records')
@@ -198,100 +152,89 @@ def create_features(df: pd.DataFrame, target_column: str = 'PTS', validate: bool
 
 
 def train_model(df: pd.DataFrame, 
-                target_column: str = 'PTS',
-                model_type: str = 'random_forest',
-                compare_models: bool = False) -> PlayerPerformancePredictor:
+               target_column: str = 'PTS',
+               model_type: str = 'random_forest',
+               compare_models: bool = False) -> PlayerPerformancePredictor:
     """
-    Train the machine learning model.
+    Train a machine learning model.
     
     Args:
-        df: DataFrame with features
+        df: Feature-engineered DataFrame
         target_column: Column to predict
-        model_type: Type of model to train
-        compare_models: Whether to compare multiple models
+        model_type: Type of model
+        compare_models: Whether to compare multiple model types
         
     Returns:
-        Trained predictor
+        Trained predictor instance
     """
     print(f"\nTraining model for {target_column}...")
     
     if compare_models:
-        # Train and compare multiple models
+        # Train multiple models and select the best
         results = train_multiple_models(df, target_column=target_column)
-        
-        if 'best_model' in results:
-            best_type = results['best_model']
-            predictor = results[best_type]['predictor']
-            
-            # Save best model
-            model_path = MODEL_DIR / f"best_model_{target_column}.pkl"
-            predictor.save_model(str(model_path))
-            
-            return predictor
-        else:
-            raise ValueError("No models were successfully trained")
+        best_model_type = results['best_model']
+        predictor = results[best_model_type]['predictor']
+        metrics = results[best_model_type]['metrics']
+        print(f"Best model: {best_model_type}")
+        model_filename = f"best_model_{target_column}.pkl"
     else:
         # Train single model
         predictor = PlayerPerformancePredictor(
             model_type=model_type,
             target_column=target_column
         )
-        
-        metrics = predictor.train(df)
-        
-        # Save model
-        model_path = MODEL_DIR / f"{model_type}_{target_column}.pkl"
-        predictor.save_model(str(model_path))
-        
-        # Print feature importance
-        try:
-            importance = predictor.get_feature_importance(top_n=10)
-            print("\nTop 10 Most Important Features:")
-            print(importance.to_string(index=False))
-        except Exception as e:
-            print(f"  Could not get feature importance: {e}")
-        
-        return predictor
+        metrics = predictor.train(df, test_size=0.2)
+        model_filename = f"{model_type}_{target_column}.pkl"
+    
+    # Print results
+    print("\nTraining Results:")
+    print(f"  Train MAE: {metrics['train']['mae']:.2f}, RMSE: {metrics['train']['rmse']:.2f}, R²: {metrics['train']['r2']:.3f}")
+    print(f"  Test MAE: {metrics['test']['mae']:.2f}, RMSE: {metrics['test']['rmse']:.2f}, R²: {metrics['test']['r2']:.3f}")
+    if 'cross_validation' in metrics:
+        print(f"  CV MAE: {metrics['cross_validation']['mae_mean']:.2f} ± {metrics['cross_validation']['mae_std']:.2f}")
+    
+    # Save model
+    model_path = MODEL_DIR / model_filename
+    predictor.save_model(str(model_path))
+    print(f"Model saved to {model_path}")
+    
+    # Show feature importance
+    try:
+        importance_df = predictor.get_feature_importance(top_n=10)
+        print("\nTop 10 Most Important Features:")
+        print(importance_df.to_string(index=False))
+    except:
+        pass
+    
+    return predictor
 
 
 def make_predictions(predictor: PlayerPerformancePredictor, 
                     df: pd.DataFrame,
-                    n_predictions: int = 5) -> pd.DataFrame:
+                    n_predictions: int = 10) -> pd.DataFrame:
     """
-    Make predictions on the data.
+    Make predictions using trained model.
     
     Args:
         predictor: Trained predictor
-        df: DataFrame with features
-        n_predictions: Number of predictions to show
+        df: Feature-engineered DataFrame
+        n_predictions: Number of recent predictions to show
         
     Returns:
-        DataFrame with predictions
+        DataFrame with predictions and actual values
     """
-    print(f"\nMaking predictions...")
+    print("\nMaking predictions...")
     
     predictions = predictor.predict(df)
     
-    # Create results DataFrame with available columns
-    result_cols = []
-    if 'GAME_DATE' in df.columns:
-        result_cols.append('GAME_DATE')
-    if 'MATCHUP' in df.columns:
-        result_cols.append('MATCHUP')
-    if predictor.target_column in df.columns:
-        result_cols.append(predictor.target_column)
-    
-    if result_cols:
-        results_df = df[result_cols].copy()
-    else:
-        results_df = pd.DataFrame(index=df.index)
-    
+    # Create results DataFrame
+    results_df = df[[predictor.target_column]].copy()
     results_df['predicted'] = predictions
+    results_df['error'] = results_df[predictor.target_column] - predictions
+    results_df['abs_error'] = results_df['error'].abs()
     
-    # Calculate error if we have the target column
-    if predictor.target_column in df.columns:
-        results_df['error'] = results_df[predictor.target_column] - results_df['predicted']
-        results_df['abs_error'] = results_df['error'].abs()
+    # Rename target column for clarity
+    results_df = results_df.rename(columns={predictor.target_column: f'{predictor.target_column}_actual'})
     
     # Show sample predictions
     print(f"\nSample Predictions (last {n_predictions} games):")
@@ -300,65 +243,170 @@ def make_predictions(predictor: PlayerPerformancePredictor,
     return results_df
 
 
+def get_user_input():
+    """Get user input for player and model configuration."""
+    print("\n" + "=" * 60)
+    print("NBA Player Statistics ML Pipeline")
+    print("=" * 60)
+    print("\nThis tool predicts NBA player statistics using machine learning.")
+    print("It analyzes historical game data and creates predictions.\n")
+    
+    # Get player name
+    while True:
+        player_name = input("Enter player name (e.g., 'LeBron James', 'Stephen Curry'): ").strip()
+        if player_name:
+            break
+        print("❌ Player name cannot be empty. Please try again.")
+    
+    # Get target column
+    print("\nWhat stat would you like to predict?")
+    print("  1. PTS  - Points")
+    print("  2. AST  - Assists")
+    print("  3. REB  - Rebounds")
+    print("  4. STL  - Steals")
+    print("  5. BLK  - Blocks")
+    
+    stat_map = {"1": "PTS", "2": "AST", "3": "REB", "4": "STL", "5": "BLK"}
+    while True:
+        choice = input("Choose stat (1-5) [default: 1 for PTS]: ").strip() or "1"
+        if choice in stat_map:
+            target_column = stat_map[choice]
+            break
+        print("❌ Invalid choice. Please enter 1-5.")
+    
+    # Get model type
+    print("\nChoose model type:")
+    print("  1. Random Forest      - Best all-around (recommended)")
+    print("  2. Gradient Boosting  - Highest accuracy, slower")
+    print("  3. Linear Regression  - Fastest, simple")
+    print("  4. Ridge Regression   - Linear with regularization")
+    
+    model_map = {
+        "1": "random_forest",
+        "2": "gradient_boosting", 
+        "3": "linear",
+        "4": "ridge"
+    }
+    while True:
+        choice = input("Choose model (1-4) [default: 1 for Random Forest]: ").strip() or "1"
+        if choice in model_map:
+            model_type = model_map[choice]
+            break
+        print("❌ Invalid choice. Please enter 1-4.")
+    
+    # Get season year
+    while True:
+        year_input = input("\nEnter season year [default: 2024]: ").strip() or "2024"
+        try:
+            season_year = int(year_input)
+            if 2000 <= season_year <= 2025:
+                break
+            print("❌ Please enter a year between 2000 and 2025.")
+        except ValueError:
+            print("❌ Invalid year. Please enter a number.")
+    
+    # Confirm settings
+    print("\n" + "=" * 60)
+    print("Configuration Summary:")
+    print("=" * 60)
+    print(f"Player:       {player_name}")
+    print(f"Stat:         {target_column}")
+    print(f"Model:        {model_type}")
+    print(f"Season:       {season_year}")
+    print("=" * 60)
+    
+    confirm = input("\nProceed with training? (y/n) [default: y]: ").strip().lower() or "y"
+    if confirm != "y":
+        print("❌ Training cancelled.")
+        return None
+    
+    return {
+        "player_name": player_name,
+        "target_column": target_column,
+        "model_type": model_type,
+        "season_year": season_year,
+        "season_type": "Regular Season",
+        "min_minutes": 10
+    }
+
+
 def main():
     """
     Main pipeline execution.
     """
-    print("="*60)
-    print("NBA Player Statistics ML Pipeline")
-    print("="*60)
+    # Get user configuration
+    config = get_user_input()
+    if config is None:
+        return
     
-    # Configuration
-    player_name = "LeBron James"  # Change this to any player
-    target_column = "PTS"  # Points, AST, REB, etc.
-    model_type = "random_forest"  # or 'gradient_boosting', 'linear', 'ridge'
-    compare_models = False  # Set to True to compare all models
-    validate_data = False  # Set to True to enable pydantic schema validation
+    player_name = config["player_name"]
+    target_column = config["target_column"]
+    model_type = config["model_type"]
+    season_type = config["season_type"]
+    season_year = config["season_year"]
+    min_minutes = config["min_minutes"]
     
     try:
         # Step 1: Load or collect data
         df = load_or_collect_data(
             player_name=player_name,
-            season_type="Regular Season",
-            season_year=2024,
-            use_cached=True
+            season_type=season_type,
+            season_year=season_year,
+            use_cached=False  # Always get fresh data for user-specified player
         )
         
         if df.empty:
-            print("No data available. Exiting.")
+            print(f"\n❌ No data available for {player_name}. Please check the player name and try again.")
             return
         
         # Step 2: Preprocess data
-        df = preprocess_data(df, min_minutes=10, validate=validate_data)
+        df = preprocess_data(df, min_minutes=min_minutes, validate=False)
         
         if df.empty:
-            print("No data after preprocessing. Exiting.")
+            print("\n❌ No data after preprocessing. The player may not have enough games meeting the criteria.")
             return
         
         # Step 3: Engineer features
-        df = create_features(df, target_column=target_column, validate=validate_data)
+        df = create_features(df, target_column=target_column, validate=False)
         
         # Step 4: Train model
         predictor = train_model(
             df, 
             target_column=target_column,
             model_type=model_type,
-            compare_models=compare_models
+            compare_models=False
         )
         
         # Step 5: Make predictions
         results = make_predictions(predictor, df, n_predictions=10)
         
         print("\n" + "="*60)
-        print("Pipeline completed successfully!")
+        print("✅ Pipeline completed successfully!")
         print("="*60)
+        print(f"\nModel saved and ready to use!")
+        print(f"\nTo make predictions via API:")
+        print(f"  1. Start the API: python3 api.py")
+        print(f"  2. Use your trained model for predictions")
+        
+        # Ask if user wants to run another player
+        print("\n" + "="*60)
+        another = input("\nWould you like to train another model? (y/n): ").strip().lower()
+        if another == "y":
+            print("\n" * 2)
+            main()  # Recursively call main for another run
         
     except Exception as e:
-        print(f"\nError in pipeline: {e}")
+        print(f"\n❌ Error in pipeline: {e}")
         import traceback
         traceback.print_exc()
 
 
 if __name__ == "__main__":
-    main()
-
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n❌ Training interrupted by user.")
+    except Exception as e:
+        print(f"\n\n❌ Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
