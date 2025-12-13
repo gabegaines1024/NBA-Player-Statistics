@@ -112,8 +112,8 @@ class PredictionResponse(BaseModel):
     """
     success: bool = Field(..., description="Whether prediction was successful")
     predictions: List[float] = Field(..., description="Predicted values")
-    actual_values: Optional[List[float]] = Field(None, description="Actual values (if available)")
-    errors: Optional[List[float]] = Field(None, description="Prediction errors (if actual values available)")
+    actual_values: Optional[List[Optional[float]]] = Field(None, description="Actual values (if available, None for future games)")
+    errors: Optional[List[Optional[float]]] = Field(None, description="Prediction errors (None if actual value unavailable)")
     game_dates: Optional[List[str]] = Field(None, description="Game dates for predictions")
     matchups: Optional[List[str]] = Field(None, description="Matchups for predictions")
     error: Optional[str] = Field(None, description="Error message if prediction failed")
