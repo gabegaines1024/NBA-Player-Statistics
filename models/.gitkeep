@@ -1,0 +1,4 @@
+# Placeholder for models directory
+# This directory will contain trained ML model files (.pkl)
+# Model files are ignored by git (.gitignore)
+
