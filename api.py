@@ -388,6 +388,26 @@ async def make_predictions(request: PredictionRequest):
         # Make predictions
         predictions = predictor.predict(df)
         
+        # Filter predictions for specific opponent if provided
+        if validated_request.opponent_team:
+            opponent = validated_request.opponent_team
+            if 'OPPONENT' in df.columns:
+                # Filter to only games vs this opponent
+                opponent_mask = df['OPPONENT'] == opponent
+                if opponent_mask.any():
+                    predictions = predictions[opponent_mask]
+                    df = df[opponent_mask]
+                else:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"No games found against opponent {opponent}"
+                    )
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="OPPONENT column not found in features. Ensure matchup features are created."
+                )
+        
         # Get last n predictions
         n = min(validated_request.n_predictions, len(predictions))
         pred_values = predictions[-n:].tolist()
