@@ -81,6 +81,10 @@ class PredictionRequest(BaseModel):
     model_path: Optional[str] = Field(None, description="Path to saved model file")
     player_name: Optional[str] = Field(None, description="Player name (if loading from cache)")
     target_column: str = Field(default="PTS", description="Target column to predict")
+    opponent_team: Optional[str] = Field(
+        None, 
+        description="Opponent team abbreviation (e.g., 'BOS', 'LAL') for matchup-specific prediction"
+    )
     game_data: Optional[Dict[str, Any]] = Field(
         None,
         description="Game data for prediction (if not using cached data)"
@@ -92,6 +96,14 @@ class PredictionRequest(BaseModel):
     def validate_target_column(cls, v: str) -> str:
         """Validate target column."""
         return v.upper()
+    
+    @field_validator('opponent_team')
+    @classmethod
+    def validate_opponent_team(cls, v: Optional[str]) -> Optional[str]:
+        """Validate and uppercase opponent team abbreviation."""
+        if v is not None:
+            return v.upper().strip()
+        return v
 
 
 class PredictionResponse(BaseModel):

@@ -11,6 +11,7 @@ Machine learning pipeline for predicting NBA player performance with FastAPI RES
 - 🚀 **REST API**: FastAPI endpoints for training and predictions
 - ✅ **Data Validation**: Pydantic schemas for type safety
 - 📊 **Feature Engineering**: Rolling stats, efficiency metrics, time-based features
+- 🎯 **Opponent-Specific Analysis**: Predict performance based on matchup history
 
 ## Quick Start
 
@@ -80,7 +81,7 @@ See [QUICKSTART_API.md](QUICKSTART_API.md) for detailed API usage.
 
 - [API Documentation](API_DOCUMENTATION.md) - Complete API reference
 - [Quick Start Guide](QUICKSTART_API.md) - Get started in 5 minutes
-- [Implementation Status](STATUS.md) - Current project status
+- [Opponent Features](OPPONENT_FEATURES.md) - Matchup-based predictions guide
 - [Interactive API Docs](http://localhost:8000/docs) - Swagger UI (when server is running)
 
 ## Project Structure
@@ -108,7 +109,7 @@ NBA-Player-Statistics/
 |----------|--------|-------------|
 | `/train` | POST | Train a model |
 | `/train/tuning` | POST | Train with hyperparameter tuning |
-| `/predict` | POST | Make predictions |
+| `/predict` | POST | Make predictions (supports opponent filtering) |
 | `/models` | GET | List saved models |
 | `/health` | GET | Health check |
 

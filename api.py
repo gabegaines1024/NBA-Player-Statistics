@@ -417,7 +417,11 @@ async def make_predictions(request: PredictionRequest):
         errors = None
         if predictor.target_column in df.columns:
             actual_values = df[predictor.target_column].values[-n:].tolist()
-            errors = [abs(p - a) for p, a in zip(pred_values, actual_values)]
+            # Replace NaN with None for JSON serialization
+            actual_values = [None if pd.isna(v) else float(v) for v in actual_values]
+            # Calculate errors only for non-None values
+            if actual_values:
+                errors = [abs(p - a) if a is not None else None for p, a in zip(pred_values, actual_values)]
         
         # Get game dates and matchups if available
         game_dates = None

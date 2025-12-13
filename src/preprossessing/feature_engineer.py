@@ -151,12 +151,19 @@ def create_time_based_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def create_matchup_features(df: pd.DataFrame) -> pd.DataFrame:
+def create_matchup_features(df: pd.DataFrame, player_col: str = 'PLAYER_NAME') -> pd.DataFrame:
     """
-    Create features related to matchup (home/away, opponent strength, etc.).
+    Create features related to matchup including opponent-specific performance history.
+    
+    This function creates:
+    - Home/Away indicators
+    - Opponent team extraction
+    - Player's historical stats vs specific opponents (rolling averages)
+    - Recent performance vs opponent (last 3, 5 games against them)
     
     Args:
         df: DataFrame with game logs
+        player_col: Column name for player identifier
         
     Returns:
         DataFrame with matchup features added
@@ -167,6 +174,46 @@ def create_matchup_features(df: pd.DataFrame) -> pd.DataFrame:
     if 'MATCHUP' in df.columns:
         df['IS_HOME'] = df['MATCHUP'].str.contains('vs.').astype(int)
         df['IS_AWAY'] = df['MATCHUP'].str.contains('@').astype(int)
+        
+        # Extract opponent team abbreviation from MATCHUP
+        # Format is either "LAL vs. BOS" or "LAL @ BOS"
+        df['OPPONENT'] = df['MATCHUP'].str.extract(r'(?:vs\.|@)\s*([A-Z]{2,3})')
+    
+    # Create opponent-specific rolling statistics
+    if 'OPPONENT' in df.columns:
+        # Sort by player and date to ensure chronological order
+        if 'GAME_DATE' in df.columns:
+            df['GAME_DATE'] = pd.to_datetime(df['GAME_DATE'])
+            df = df.sort_values(['GAME_DATE', player_col])
+        
+        # Define key stats to track vs opponents
+        stat_columns = ['PTS', 'AST', 'REB', 'STL', 'BLK', 'FGM', 'FGA', 'FG3M', 'FG3A']
+        available_stats = [col for col in stat_columns if col in df.columns]
+        
+        # For each stat, create rolling averages vs specific opponent
+        for stat in available_stats:
+            # Average vs this opponent (all previous games)
+            df[f'{stat}_vs_OPP_avg'] = df.groupby([player_col, 'OPPONENT'])[stat].transform(
+                lambda x: x.shift(1).expanding().mean()
+            )
+            
+            # Last 3 games vs this opponent
+            df[f'{stat}_vs_OPP_L3'] = df.groupby([player_col, 'OPPONENT'])[stat].transform(
+                lambda x: x.shift(1).rolling(window=3, min_periods=1).mean()
+            )
+            
+            # Last 5 games vs this opponent
+            df[f'{stat}_vs_OPP_L5'] = df.groupby([player_col, 'OPPONENT'])[stat].transform(
+                lambda x: x.shift(1).rolling(window=5, min_periods=1).mean()
+            )
+        
+        # Count of games played vs this opponent (experience factor)
+        df['GAMES_vs_OPP'] = df.groupby([player_col, 'OPPONENT']).cumcount()
+        
+        # Days since last played this opponent
+        df['DAYS_SINCE_vs_OPP'] = df.groupby([player_col, 'OPPONENT'])['GAME_DATE'].transform(
+            lambda x: (x - x.shift(1)).dt.days if 'GAME_DATE' in df.columns else np.nan
+        )
     
     return df
 
@@ -204,8 +251,8 @@ def engineer_features(df: pd.DataFrame,
     # Create time-based features
     df = create_time_based_features(df)
     
-    # Create matchup features
-    df = create_matchup_features(df)
+    # Create matchup features (including opponent-specific stats)
+    df = create_matchup_features(df, player_col=player_col)
     
     # Create target variable shift (for time series prediction)
     if target_column in df.columns:
