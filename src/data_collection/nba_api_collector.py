@@ -76,15 +76,27 @@ def get_player_game_logs(player_name: str, season_type: str = 'Regular Season', 
             return None
         
         # Make API call using endpoint
+        # Note: PlayerGameLogs endpoint doesn't filter by player_id directly
+        # We need to get all logs and filter, or use player_id_nullable parameter
         time.sleep(1)
+        
+        # Format season string (e.g., "2023-24")
+        season_str = f"{season_year-1}-{str(season_year)[-2:]}"
+        
         game_logs = playergamelogs.PlayerGameLogs(
-            player_id=player_id, 
-            season_type=season_type, 
-            season_year=season_year
+            season_nullable=season_str,
+            season_type_nullable=season_type
         ).get_data_frames()[0]
-
+        
+        # Filter for the specific player
         if game_logs is not None and not game_logs.empty:
-            return game_logs
+            game_logs = game_logs[game_logs['PLAYER_ID'] == player_id]
+            
+            if not game_logs.empty:
+                return game_logs
+            else:
+                print(f"No game logs found for {player_name} in {season_str}")
+                return None
         else:
             print(f"Game logs not found for {player_name}")
             return None

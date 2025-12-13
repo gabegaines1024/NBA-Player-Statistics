@@ -68,18 +68,24 @@ def filter_minimum_minutes(data, min_minutes: int):
         Filtered DataFrame
     """
     data_df = pd.DataFrame(data) if not isinstance(data, pd.DataFrame) else data
-    if 'minutes_played' in data_df.columns:
-        return data_df[data_df['minutes_played'] >= min_minutes]
+    
+    # Check for minutes column (could be 'minutes', 'MIN', or 'minutes_played')
+    if 'minutes' in data_df.columns:
+        return data_df[data_df['minutes'] >= min_minutes]
     elif 'MIN' in data_df.columns:
         return data_df[data_df['MIN'] >= min_minutes]
+    elif 'minutes_played' in data_df.columns:
+        return data_df[data_df['minutes_played'] >= min_minutes]
     else:
-        print("Warning: 'minutes_played' or 'MIN' column not found")
+        print("Warning: No minutes column found (minutes, MIN, or minutes_played)")
         return data_df
     
 #standardize column names
 def standardize_column_names(data):
     """
-    Standardize column names to lowercase with underscores.
+    Standardize column names to a consistent format.
+    Note: We keep uppercase names for stat columns to maintain compatibility
+    with NBA API and feature engineering.
     
     Args:
         data: pandas DataFrame
@@ -88,17 +94,20 @@ def standardize_column_names(data):
         DataFrame with standardized column names
     """
     data_df = pd.DataFrame(data) if not isinstance(data, pd.DataFrame) else data
-    return data_df.rename(columns={
+    
+    # Create a mapping for standardization
+    rename_map = {
         'GAME_ID': 'game_id',
-        'GAME_DATE': 'game_date',
+        'GAME_DATE': 'game_date', 
         'MATCHUP': 'matchup',
-        'PTS': 'points',
-        'MIN': 'minutes',
-        'MP': 'minutes_played',
-        'FG': 'field_goals',
-        'FGA': 'field_goals_attempted',
-        'FG%': 'field_goal_percentage',
-    })
+        'MP': 'minutes',  # Some APIs use MP
+        'MIN': 'minutes',  # Most use MIN
+        'FG': 'FGM',  # Standardize to FGM (field goals made)
+        'FG%': 'FG_PCT',  # Standardize percentage notation
+    }
+    
+    # Apply the renames, but keep most stat columns uppercase (PTS, AST, REB, etc.)
+    return data_df.rename(columns=rename_map)
 
 #detect and remove outliers
 def detect_and_remove_outliers(data, threshold=3, columns=None):
