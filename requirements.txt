@@ -1,31 +1,30 @@
 # Core Data & API
-nba-api==1.4.1
-pandas==2.1.4
-numpy==1.26.2
+nba-api>=1.4.1
+pandas>=2.2.0
+numpy>=1.26.0,<2.0.0
 
 # Machine Learning
-scikit-learn==1.3.2
-joblib==1.3.2
+scikit-learn>=1.4.0
+joblib>=1.3.0
 
 # Visualization
-matplotlib==3.8.2
-seaborn==0.13.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
 
-# Jupyter Notebooks
-jupyter==1.0.0
-ipykernel==6.27.1
+# Jupyter Notebooks (optional)
+jupyter>=1.0.0
+ipykernel>=6.27.0
 
 # Data Processing
-requests==2.31.0
+requests>=2.31.0
 
-#data validation
-pydantic==2.12.4
-pydantic-core==2.41.5
+# Data validation
+pydantic>=2.5.0
 
 # Optional but useful
-scipy==1.11.4
+scipy>=1.11.0
 
 # API Framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6

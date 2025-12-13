@@ -146,6 +146,7 @@ async def train_model(
             best_type = results['best_model']
             predictor = results[best_type]['predictor']
             metrics_dict = results[best_type]['metrics']
+            actual_model_type = best_type  # Use the best model type
         else:
             # Train single model
             predictor = PlayerPerformancePredictor(
@@ -153,9 +154,10 @@ async def train_model(
                 target_column=validated_request.target_column
             )
             metrics_dict = predictor.train(df, test_size=validated_request.test_size)
+            actual_model_type = validated_request.model_type  # Use the requested model type
         
-        # Save model
-        model_filename = f"{validated_request.model_type}_{validated_request.target_column}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
+        # Save model with actual model type (best if compared, requested otherwise)
+        model_filename = f"{actual_model_type}_{validated_request.target_column}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
         model_path = MODEL_DIR / model_filename
         predictor.save_model(str(model_path))
         
@@ -184,7 +186,7 @@ async def train_model(
         
         response = ModelTrainingResponse(
             success=True,
-            model_type=validated_request.model_type,
+            model_type=actual_model_type,  # Return actual model type used
             target_column=validated_request.target_column,
             metrics=metrics,
             model_path=str(model_path),
@@ -265,8 +267,11 @@ async def train_model_with_tuning(
             n_iter=n_iter
         )
         
+        # Use the actual model type (always the requested one for tuning endpoint)
+        actual_model_type = validated_request.model_type
+        
         # Save model
-        model_filename = f"{validated_request.model_type}_{validated_request.target_column}_tuned_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
+        model_filename = f"{actual_model_type}_{validated_request.target_column}_tuned_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
         model_path = MODEL_DIR / model_filename
         predictor.save_model(str(model_path))
         
@@ -295,7 +300,7 @@ async def train_model_with_tuning(
         
         response = ModelTrainingResponse(
             success=True,
-            model_type=validated_request.model_type,
+            model_type=actual_model_type,  # Return actual model type used
             target_column=validated_request.target_column,
             metrics=metrics,
             model_path=str(model_path),
